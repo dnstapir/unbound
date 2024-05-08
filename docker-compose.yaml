@@ -1,0 +1,16 @@
+services:
+  unbound:
+    image: ghcr.io/dnstapir/unbound
+    restart: unless-stopped
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+      - "443:443/tcp"
+      - "853:853/tcp"
+    build:
+      context: .
+      dockerfile: Dockerfile
+      x-bake:
+        platforms:
+          - linux/amd64
+          - linux/arm64
