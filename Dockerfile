@@ -11,4 +11,4 @@ EXPOSE 853/tcp
 
 COPY local.d/* /etc/unbound/local.d/
 
-ENTRYPOINT sh /entrypoint.sh
+ENTRYPOINT ["sh", "/entrypoint.sh"]
