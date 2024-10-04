@@ -14,4 +14,4 @@ if [ ! -f /etc/pki/tls/certs/unbound.pem ]; then
         -days 1000
 fi
 
-/usr/sbin/unbound -d
+/usr/sbin/unbound -d $@
