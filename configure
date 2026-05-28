@@ -24987,9 +24987,9 @@ printf "%s\n" "#define DNSTAP_SOCKET_PATH \"$hdr_dnstap_socket_path\"" >>confdef
 
 	DNSTAP_SOCKET_TESTBIN='unbound-dnstap-socket$(EXEEXT)'
 
-        DNSTAP_SRC="dnstap/dnstap.c dnstap/dnstap.pb-c.c dnstap/dnstap_fstrm.c dnstap/dtstream.c"
+        DNSTAP_SRC="dnstap/dnstap.c dnstap/dnstap.pb-c.c dnstap/dnstap_fstrm.c dnstap/dtstream.c dnstap/span.c"
 
-        DNSTAP_OBJ="dnstap.lo dnstap.pb-c.lo dnstap_fstrm.lo dtstream.lo"
+        DNSTAP_OBJ="dnstap.lo dnstap.pb-c.lo dnstap_fstrm.lo dtstream.lo span.lo"
 
 
     else

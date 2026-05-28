@@ -622,6 +622,13 @@ struct config_file {
 	/** true to log dnstap FORWARDER_RESPONSE message events */
 	int dnstap_log_forwarder_response_messages;
 
+	/** Use the dns span trace over fstrm */
+	int   span_enable;
+	/** span-socket-path: Unix socket path to relay daemon */
+	char *span_socket_path;
+	/** span-emit-rrsets: emit SPAN_RRSET per RR (default: 0) */
+	int   span_emit_rrsets;
+
 	/** true to disable DNSSEC lameness check in iterator */
 	int disable_dnssec_lame_check;
 

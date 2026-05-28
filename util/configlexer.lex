@@ -494,6 +494,9 @@ dnstap{COLON}			{ YDVAR(0, VAR_DNSTAP) }
 dnstap-enable{COLON}		{ YDVAR(1, VAR_DNSTAP_ENABLE) }
 dnstap-bidirectional{COLON}	{ YDVAR(1, VAR_DNSTAP_BIDIRECTIONAL) }
 dnstap-socket-path{COLON}	{ YDVAR(1, VAR_DNSTAP_SOCKET_PATH) }
+span-enable{COLON}              { YDVAR(1, VAR_SPAN_ENABLE) }
+span-socket-path{COLON}         { YDVAR(1, VAR_SPAN_SOCKET_PATH) }
+span-emit-rrsets{COLON}         { YDVAR(1, VAR_SPAN_EMIT_RRSETS) }
 dnstap-ip{COLON}		{ YDVAR(1, VAR_DNSTAP_IP) }
 dnstap-tls{COLON}		{ YDVAR(1, VAR_DNSTAP_TLS) }
 dnstap-tls-server-name{COLON}	{ YDVAR(1, VAR_DNSTAP_TLS_SERVER_NAME) }

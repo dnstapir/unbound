@@ -127,6 +127,7 @@ extern struct config_parser_state* cfg_parser;
 %token VAR_DNS64_PREFIX VAR_DNS64_SYNTHALL VAR_DNS64_IGNORE_AAAA
 %token VAR_NAT64_PREFIX
 %token VAR_DNSTAP VAR_DNSTAP_ENABLE VAR_DNSTAP_SOCKET_PATH VAR_DNSTAP_IP
+%token VAR_SPAN_ENABLE VAR_SPAN_SOCKET_PATH VAR_SPAN_EMIT_RRSETS
 %token VAR_DNSTAP_TLS VAR_DNSTAP_TLS_SERVER_NAME VAR_DNSTAP_TLS_CERT_BUNDLE
 %token VAR_DNSTAP_TLS_CLIENT_KEY_FILE VAR_DNSTAP_TLS_CLIENT_CERT_FILE
 %token VAR_DNSTAP_SEND_IDENTITY VAR_DNSTAP_SEND_VERSION VAR_DNSTAP_BIDIRECTIONAL
@@ -3540,7 +3541,8 @@ contents_dt: contents_dt content_dt
 	| ;
 content_dt: dt_dnstap_enable | dt_dnstap_socket_path | dt_dnstap_bidirectional |
 	dt_dnstap_ip | dt_dnstap_tls | dt_dnstap_tls_server_name |
-	dt_dnstap_tls_cert_bundle |
+	dt_dnstap_tls_cert_bundle | dt_span_enable | 
+        dt_span_socket_path | dt_span_emit_rrsets | 
 	dt_dnstap_tls_client_key_file | dt_dnstap_tls_client_cert_file |
 	dt_dnstap_send_identity | dt_dnstap_send_version |
 	dt_dnstap_identity | dt_dnstap_version |
@@ -3578,6 +3580,27 @@ dt_dnstap_socket_path: VAR_DNSTAP_SOCKET_PATH STRING_ARG
 		cfg_parser->cfg->dnstap_socket_path = $2;
 	}
 	;
+dt_span_enable: VAR_SPAN_ENABLE STRING_ARG
+        { 
+                OUTYY(("P(dt_span_enable:%s)\n", $2));
+                cfg_parser->cfg->span_enable = (strcmp($2, "yes") == 0);
+                free($2); 
+        }
+        ;
+dt_span_socket_path: VAR_SPAN_SOCKET_PATH STRING_ARG
+        { 
+                OUTYY(("P(dt_span_socket_path:%s)\n", $2));
+                free(cfg_parser->cfg->span_socket_path);
+                cfg_parser->cfg->span_socket_path = $2; 
+        }
+        ;
+dt_span_emit_rrsets: VAR_SPAN_EMIT_RRSETS STRING_ARG
+        { 
+                OUTYY(("P(dt_span_emit_rrsets:%s)\n", $2));
+                cfg_parser->cfg->span_emit_rrsets = (strcmp($2, "yes") == 0);
+                free($2); 
+        }
+        ;
 dt_dnstap_ip: VAR_DNSTAP_IP STRING_ARG
 	{
 		OUTYY(("P(dt_dnstap_ip:%s)\n", $2));

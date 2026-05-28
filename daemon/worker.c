@@ -83,7 +83,11 @@
 #include "util/shm_side/shm_main.h"
 #include "dnscrypt/dnscrypt.h"
 #include "dnstap/dtstream.h"
+#include "dnstap/span.h"
 
+#ifdef HAVE_STDATOMIC_H
+#  include <stdatomic.h>
+#endif
 #ifdef HAVE_SYS_TYPES_H
 #  include <sys/types.h>
 #endif
@@ -99,6 +103,11 @@
 #define NORMAL_UDP_SIZE	512 /* bytes */
 /** ratelimit for error responses */
 #define ERROR_RATELIMIT 100 /* qps */
+
+/** Per-worker span stream. Opened at worker init, closed at destroy. */
+static __thread struct span_stream *worker_span_stream = NULL;
+
+static span_transport_t span_transport(struct comm_point *c);
 
 /**
  * seconds to add to prefetch leeway.  This is a TTL that expires old rrsets
@@ -1472,6 +1481,7 @@ worker_handle_request(struct comm_point* c, void* arg, int error,
 	struct comm_reply* repinfo)
 {
 	struct worker* worker = (struct worker*)arg;
+	uint64_t trace_id = 0;
 	int ret;
 	hashvalue_type h;
 	struct lruhash_entry* e;
@@ -1498,6 +1508,37 @@ worker_handle_request(struct comm_point* c, void* arg, int error,
 	struct timeval wait_time;
 	struct check_request_result check_result = {0,0};
 	memset(&qinfo, 0, sizeof(qinfo));
+
+#ifdef USE_DNSTAP
+	if(worker_span_stream) {
+		trace_id = span_new_trace_id();
+		uint64_t session_hash = 0; int resumed = 0;
+#ifdef HAVE_SSL
+		if(c->ssl) {
+		SSL_SESSION *sess = SSL_get_session(c->ssl);
+		if(sess) {
+			unsigned int sid_len = 0;
+			const unsigned char *sid =
+				SSL_SESSION_get_id(sess, &sid_len);
+			session_hash = sid_len > 0
+				? fnv1a(sid, sid_len) : (uint64_t)(uintptr_t)sess;
+		}
+		resumed = SSL_session_reused(c->ssl);
+	}
+#endif
+		uint8_t *_d   = sldns_buffer_begin(c->buffer);
+		uint8_t ip_ver = repinfo->remote_addrlen == 28 ? 6 : 4;
+		uint8_t rd_cd  = (LDNS_RD_WIRE(_d)?0x01:0) | (LDNS_CD_WIRE(_d)?0x02:0);
+		struct timespec _ts;
+		clock_gettime(CLOCK_MONOTONIC, &_ts);
+		span_emit_ingress_conn(worker_span_stream, trace_id,
+			(uint32_t)_ts.tv_nsec, span_transport(c),
+			session_hash, resumed,
+			&repinfo->client_addr, sizeof(repinfo->client_addr),
+			&repinfo->remote_addr,       repinfo->remote_addrlen,
+			ip_ver, (uint32_t)error);
+	}
+#endif
 
 	if((error != NETEVENT_NOERROR && error != NETEVENT_DONE)|| !repinfo) {
 		/* some bad tcp query DNS formats give these error calls */
@@ -1537,6 +1578,7 @@ worker_handle_request(struct comm_point* c, void* arg, int error,
 				query_error(c->buffer, check_result.value, 0);
 				return 1;
 			}
+			/* span emit: Bad DNScrypt query */
 			comm_point_drop_reply(repinfo);
 			return 0;
 		}
@@ -1546,6 +1588,7 @@ worker_handle_request(struct comm_point* c, void* arg, int error,
 			log_addr(VERB_CLIENT, "from", &repinfo->client_addr,
 				repinfo->client_addrlen);
 			if(worker_err_ratelimit(worker, LDNS_RCODE_FORMERR) == -1) {
+			        /* span emit: formerr DNScrypt query */
 				comm_point_drop_reply(repinfo);
 				return 0;
 			}
@@ -1562,11 +1605,11 @@ worker_handle_request(struct comm_point* c, void* arg, int error,
 				sldns_rr_descript(qinfo.qtype)->_name,
 				buf);
 			if(worker_err_ratelimit(worker, LDNS_RCODE_SERVFAIL) == -1) {
+				/* emit span dnscrypt error */
 				comm_point_drop_reply(repinfo);
 				return 0;
 			}
-			query_error(c->buffer, LDNS_RCODE_SERVFAIL,
-				qinfo.qname_len);
+			query_error(c->buffer, LDNS_RCODE_SERVFAIL, qinfo.qname_len);
 			worker->stats.num_query_dnscrypt_cleartext++;
 			return 1;
 		}
@@ -1611,6 +1654,7 @@ worker_handle_request(struct comm_point* c, void* arg, int error,
 			query_error(c->buffer, check_result.value, 0);
 			return 1;
 		}
+		/* emit span bad query */
 		comm_point_drop_reply(repinfo);
 		return 0;
 	}
@@ -1628,6 +1672,7 @@ worker_handle_request(struct comm_point* c, void* arg, int error,
 		if(!check_ip_ratelimit(worker, &repinfo->client_addr,
 			repinfo->client_addrlen, 0, c->buffer)) {
 			worker->stats.num_queries_ip_ratelimited++;
+			/* emit span rate limit */
 			comm_point_drop_reply(repinfo);
 			return 0;
 		}
@@ -1639,6 +1684,7 @@ worker_handle_request(struct comm_point* c, void* arg, int error,
 			repinfo->client_addrlen);
 		memset(&qinfo, 0, sizeof(qinfo)); /* zero qinfo.qname */
 		if(worker_err_ratelimit(worker, LDNS_RCODE_FORMERR) == -1) {
+			/* emit span formerror */
 			comm_point_drop_reply(repinfo);
 			return 0;
 		}
@@ -1650,6 +1696,17 @@ worker_handle_request(struct comm_point* c, void* arg, int error,
 		addr_to_str(&repinfo->client_addr, repinfo->client_addrlen, ip, sizeof(ip));
 		log_query_in(ip, qinfo.qname, qinfo.qtype, qinfo.qclass);
 	}
+
+#ifdef USE_DNSTAP
+	if(worker_span_stream) {
+		uint8_t *_d   = sldns_buffer_begin(c->buffer);
+		uint8_t rd_cd  = (LDNS_RD_WIRE(_d)?0x01:0) | (LDNS_CD_WIRE(_d)?0x02:0);
+		span_emit_ingress_query(worker_span_stream, trace_id,
+			LDNS_ID_WIRE(_d),
+			qinfo.qname, sizeof(qinfo.qname),
+			qinfo.qtype, qinfo.qclass, rd_cd);
+	}
+#endif
 	if(qinfo.qtype == LDNS_RR_TYPE_AXFR ||
 		qinfo.qtype == LDNS_RR_TYPE_IXFR) {
 		verbose(VERB_ALGO, "worker request: refused zone transfer.");
@@ -2535,8 +2592,7 @@ worker_send_query(struct query_info* qinfo, uint16_t flags, int dnssec,
 	int want_dnssec, int nocaps, int check_ratelimit,
 	struct sockaddr_storage* addr, socklen_t addrlen, uint8_t* zone,
 	size_t zonelen, int tcp_upstream, int ssl_upstream, char* tls_auth_name,
-	struct module_qstate* q, int* was_ratelimited,
-	int* ratelimit_incremented)
+	struct module_qstate* q, int* was_ratelimited)
 {
 	struct worker* worker = q->env->worker;
 	struct outbound_entry* e = (struct outbound_entry*)regional_alloc(
@@ -2548,7 +2604,7 @@ worker_send_query(struct query_info* qinfo, uint16_t flags, int dnssec,
 		want_dnssec, nocaps, check_ratelimit, tcp_upstream,
 		ssl_upstream, tls_auth_name, addr, addrlen, zone, zonelen, q,
 		worker_handle_service_reply, e, worker->back->udp_buff, q->env,
-		was_ratelimited, ratelimit_incremented);
+		was_ratelimited);
 	if(!e->qsent) {
 		return NULL;
 	}
@@ -2597,8 +2653,7 @@ struct outbound_entry* libworker_send_query(
 	struct sockaddr_storage* ATTR_UNUSED(addr), socklen_t ATTR_UNUSED(addrlen),
 	uint8_t* ATTR_UNUSED(zone), size_t ATTR_UNUSED(zonelen), int ATTR_UNUSED(tcp_upstream),
 	int ATTR_UNUSED(ssl_upstream), char* ATTR_UNUSED(tls_auth_name),
-	struct module_qstate* ATTR_UNUSED(q), int* ATTR_UNUSED(was_ratelimited),
-	int* ATTR_UNUSED(ratelimit_incremented))
+	struct module_qstate* ATTR_UNUSED(q), int* ATTR_UNUSED(was_ratelimited))
 {
 	log_assert(0);
 	return 0;

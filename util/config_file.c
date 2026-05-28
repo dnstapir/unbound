@@ -340,6 +340,10 @@ config_create(void)
 	if(!(cfg->dnstap_socket_path = strdup(DNSTAP_SOCKET_PATH)))
 		goto error_exit;
 #endif
+	/* span tracing defaults */
+	cfg->span_enable       = 0;
+	cfg->span_socket_path  = strdup("/run/unbound/span.sock");
+	cfg->span_emit_rrsets  = 0;
 	cfg->dnstap_bidirectional = 1;
 	cfg->dnstap_tls = 1;
 	cfg->disable_dnssec_lame_check = 0;
@@ -1833,6 +1837,7 @@ config_delete(struct config_file* cfg)
 	free(cfg->dns64_prefix);
 	config_delstrlist(cfg->dns64_ignore_aaaa);
 	free(cfg->dnstap_socket_path);
+	free(cfg->span_socket_path);
 	free(cfg->dnstap_ip);
 	free(cfg->dnstap_tls_server_name);
 	free(cfg->dnstap_tls_cert_bundle);

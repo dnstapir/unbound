@@ -23,7 +23,6 @@ CHECKLOCK_SRC=testcode/checklocks.c
 CHECKLOCK_OBJ=@CHECKLOCK_OBJ@
 DNSTAP_SRC=@DNSTAP_SRC@
 DNSTAP_OBJ=@DNSTAP_OBJ@
-DNSCRYPT_SRC=@DNSCRYPT_SRC@
 DNSCRYPT_OBJ=@DNSCRYPT_OBJ@
 WITH_DYNLIBMODULE=@WITH_DYNLIBMODULE@
 WITH_PYTHONMODULE=@WITH_PYTHONMODULE@
@@ -139,7 +138,7 @@ validator/val_sigcrypt.c validator/val_utils.c dns64/dns64.c \
 edns-subnet/edns-subnet.c edns-subnet/subnetmod.c \
 edns-subnet/addrtree.c edns-subnet/subnet-whitelist.c \
 $(CACHEDB_SRC) respip/respip.c $(CHECKLOCK_SRC) \
-$(DNSTAP_SRC) $(DNSCRYPT_SRC) $(IPSECMOD_SRC) $(IPSET_SRC)
+$(DNSTAP_SRC) $(SPAN_SRC) $(DNSCRYPT_SRC) $(IPSECMOD_SRC) $(IPSET_SRC)
 COMMON_OBJ_WITHOUT_NETCALL=dns.lo infra.lo rrset.lo dname.lo msgencode.lo \
 as112.lo msgparse.lo msgreply.lo packed_rrset.lo iterator.lo iter_delegpt.lo \
 iter_donotq.lo iter_fwd.lo iter_hints.lo iter_priv.lo iter_resptype.lo \
@@ -151,7 +150,7 @@ slabhash.lo tcp_conn_limit.lo timehist.lo tube.lo winsock_event.lo \
 autotrust.lo val_anchor.lo rpz.lo rfc_1982.lo proxy_protocol.lo \
 validator.lo val_kcache.lo val_kentry.lo val_neg.lo val_nsec3.lo val_nsec.lo \
 val_secalgo.lo val_sigcrypt.lo val_utils.lo dns64.lo $(CACHEDB_OBJ) authzone.lo \
-$(SUBNET_OBJ) $(PYTHONMOD_OBJ) $(CHECKLOCK_OBJ) $(DNSTAP_OBJ) $(DNSCRYPT_OBJ) \
+$(SUBNET_OBJ) $(PYTHONMOD_OBJ) $(CHECKLOCK_OBJ) $(DNSTAP_OBJ) $(SPAN_OBJ) $(DNSCRYPT_OBJ) \
 $(IPSECMOD_OBJ) $(IPSET_OBJ) $(DYNLIBMOD_OBJ) respip.lo timeval_func.lo
 COMMON_OBJ_WITHOUT_UB_EVENT=$(COMMON_OBJ_WITHOUT_NETCALL) netevent.lo listen_dnsport.lo \
 outside_network.lo
@@ -448,6 +447,10 @@ dnstap.lo dnstap.o: $(srcdir)/dnstap/dnstap.c config.h dnstap/dnstap_config.h \
 	$(srcdir)/util/config_file.h $(srcdir)/util/log.h \
 	$(srcdir)/util/netevent.h $(srcdir)/util/net_help.h \
 	$(srcdir)/util/locks.h
+
+span.lo span.o: $(srcdir)/dnstap/span.c config.h \
+	$(srcdir)/dnstap/span.h $(srcdir)/dnstap/cbor_enc.h \
+	$(srcdir)/dnstap/dnstap_fstrm.h
 
 # Builds both dnstap/dnstap.pb-c.c and dnstap/dnstap.pb-c.h.
 # To avoid double-building we split one target out.
